@@ -11,25 +11,30 @@ public class NetworkNode {
     protected static String gateway;
     protected static int port;
     protected static int tcpport;
-    private static boolean isTCP;
-    protected static ServerNode selectedNode = null;
     static ArrayList<ServerNode> serverNodeList = new ArrayList<>();
     static ArrayList<Item> Items = new ArrayList<>();
     static TCPServerThread TCPThread = new TCPServerThread();
     static UDPServerThread UDPThread = new UDPServerThread();
+    private static boolean isTCP;
 
     static void log(String msg) {
         System.out.println("[S]: " + msg);
     }
 
     public static void main(String[] args) throws IOException {
-        // Parameter scan loop
+        //Pętla skanująca parametry (args)
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "-ident" -> identifier = args[++i];
-                case "-tcpport", "-udpport" -> {
+                case "-udpport" -> {
                     String tcpPortArr = args[++i];
                     tcpport = Integer.parseInt(tcpPortArr);
+                    isTCP = false;
+                }
+                case "-tcpport" -> {
+                    String tcpPortArr = args[++i];
+                    tcpport = Integer.parseInt(tcpPortArr);
+                    isTCP = true;
                 }
                 case "-gateway" -> {
                     String[] gatewayArray = args[++i].split(":");
@@ -42,14 +47,14 @@ public class NetworkNode {
             }
         }
 
-        //uruchamiane serwera i praca z klientami
+        //uruchamiane serwera i praca z klientami, startuje wątek UDP(komunikacja wewnętrzna) oraz
+        //TCP(komunikacja zewnętrzna)
         serverSocket = new ServerSocket(tcpport);
         datagramSocket = new DatagramSocket(tcpport);
         log(identifier + " " + gateway + ":" + port + " tcp:" + tcpport + Items.toString());
         log("Serwer działa, oczekiwanie na klienta.");
-            TCPThread.start();
-            UDPThread.start();
-
+        TCPThread.start();
+        UDPThread.start();
 
 
         //pozwala używać komend do debugowania
@@ -74,6 +79,7 @@ public class NetworkNode {
 
     }
 
+    //Klasa pozwalająca przechować informacje o innych Node w sieci (id, ip, port oraz jakie ma zasoby)
     private static class ServerNode {
 
         protected String identifier;
@@ -110,6 +116,7 @@ public class NetworkNode {
         }
     }
 
+    //Klasa przedstawiająca zasób (nazwa, ilość)
     private static class Item {
         String name;
         int quantity;
@@ -126,26 +133,27 @@ public class NetworkNode {
         }
     }
 
+    //Klasa wątku TCP, pozwala na obsługę klienta, sprawdzenie wymaganych zasobów oraz odpowiadanie klientowi
     private static class TCPServerThread extends Thread {
 
         public TCPServerThread() {
         }
 
+        //Pozwala wypisywać logi w konsoli
         static void log(String msg) {
             System.out.println("[S]: " + msg);
         }
 
+        //Uproszczona funkcja wysyłania w celu ułatwienia pracy
         static void sendMSG(String msg, BufferedWriter bW) throws IOException {
             bW.write(msg);
             bW.newLine();
             bW.flush();
         }
 
-
         @Override
         public void run() {
             try {
-
                 while (true) {
                     Socket socket = serverSocket.accept(); // TCP
 
@@ -160,7 +168,6 @@ public class NetworkNode {
                     String msg;
                     log("Połączono z: " + clientIP + " " + clientPORT);
                     msg = bR.readLine();
-                    // log(msg);
 
                     if (msg.equals("NEW_NODE")) {
                         String nodeID = bR.readLine();
@@ -175,7 +182,7 @@ public class NetworkNode {
                         }
                         boolean isOnList = false;
                         for (ServerNode serverNode : serverNodeList) {
-                            if (serverNode.identifier.equals(nodeID) || identifier.equals(nodeID)) {
+                            if (serverNode.port == nodeTCPPort || tcpport == nodeTCPPort) {
                                 isOnList = true;
                                 break;
                             }
@@ -183,8 +190,33 @@ public class NetworkNode {
                         if (!isOnList) {
                             serverNodeList.add(new ServerNode(nodeID, nodeGateway, nodeTCPPort, arrayList));
                         }
+                        UDPThread.sendAccepted();
                         if (gateway != null) {
                             UDPThread.sendListToParent();
+                        }
+                        continue;
+                    }
+
+                    if (msg.equals("ACCEPTED")) {
+                        String nodeID = bR.readLine();
+                        String nodeGateway = bR.readLine();
+                        int nodeTCPPort = Integer.parseInt(bR.readLine());
+                        int numberOfItems = Integer.parseInt(bR.readLine());
+                        ArrayList<Item> arrayList = new ArrayList<>();
+                        for (int i = 0; i < numberOfItems; i++) {
+                            String name = bR.readLine();
+                            int quantity = Integer.parseInt(bR.readLine());
+                            arrayList.add(new Item(name, quantity));
+                        }
+                        boolean isOnList = false;
+                        for (ServerNode serverNode : serverNodeList) {
+                            if (serverNode.port == nodeTCPPort || tcpport == nodeTCPPort) {
+                                isOnList = true;
+                                break;
+                            }
+                        }
+                        if (!isOnList) {
+                            serverNodeList.add(new ServerNode(nodeID, nodeGateway, nodeTCPPort, arrayList));
                         }
                         continue;
                     }
@@ -204,7 +236,7 @@ public class NetworkNode {
                                 arrayList.add(new Item(name, quantity));
                             }
                             for (ServerNode serverNode : serverNodeList) {
-                                if (serverNode.identifier.equals(nodeID) || identifier.equals(nodeID)) {
+                                if (serverNode.port == nodeTCPPort || tcpport == nodeTCPPort) {
                                     isOnList = true;
                                     break;
                                 }
@@ -213,7 +245,6 @@ public class NetworkNode {
                                 serverNodeList.add(new ServerNode(nodeID, nodeGateway, nodeTCPPort, arrayList));
                             }
                         }
-
                         if (gateway == null) {
                             UDPThread.sendUpdatedList();
                         }
@@ -235,7 +266,7 @@ public class NetworkNode {
                                 arrayList.add(new Item(name, quantity));
                             }
                             for (ServerNode serverNode : serverNodeList) {
-                                if (serverNode.identifier.equals(nodeID) || identifier.equals(nodeID)) {
+                                if (serverNode.port == nodeTCPPort || tcpport == nodeTCPPort) {
                                     isOnList = true;
                                     break;
                                 }
@@ -287,7 +318,6 @@ public class NetworkNode {
                         }
                         System.exit(1);
                     }
-
 
                     log(msg);
                     ArrayList<Item> clientItems = new ArrayList<>();
@@ -362,12 +392,12 @@ public class NetworkNode {
                     log("Closed");
                 }
             } catch (IOException e) {
-                System.out.println(this.getName() + " został wyłączony.");
+                System.out.println(this.getName() + " TCP PROBLEM EXCEPTION");
             }
         }
-
     }
 
+    //Klasa wątku UDP, pozwala na obsłuchę zapytań innych wątków, służy do synchronizacji oraz wymiany informacji
     private static class UDPServerThread extends Thread {
 
         byte[] buff = new byte[1460];
@@ -376,17 +406,12 @@ public class NetworkNode {
         public UDPServerThread() {
         }
 
-
-        void sendRequest(String item, int quantity, String ident) {
+        //Funkcja wysyłająca prośbę o aktualizację informacji o zasobach
+        synchronized void sendRequest(String item, int quantity, String ident) {
             try {
                 for (ServerNode serverNode : serverNodeList) {
-                    DatagramPacket datagramPacket = new DatagramPacket("REQUEST".getBytes(), "REQUEST".getBytes().length, InetAddress.getByName(serverNode.gateway), serverNode.port);
-                    datagramSocket.send(datagramPacket);
-                    datagramPacket = new DatagramPacket(item.getBytes(), item.getBytes().length, InetAddress.getByName(serverNode.gateway), serverNode.port);
-                    datagramSocket.send(datagramPacket);
-                    datagramPacket = new DatagramPacket(String.valueOf(quantity).getBytes(), String.valueOf(quantity).getBytes().length, InetAddress.getByName(serverNode.gateway), serverNode.port);
-                    datagramSocket.send(datagramPacket);
-                    datagramPacket = new DatagramPacket(String.valueOf(ident).getBytes(), String.valueOf(ident).getBytes().length, InetAddress.getByName(serverNode.gateway), serverNode.port);
+                    String message = "REQUEST" + " " + quantity + " " + item + " " + ident;
+                    DatagramPacket datagramPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, InetAddress.getByName(serverNode.gateway), serverNode.port);
                     datagramSocket.send(datagramPacket);
                 }
             } catch (IOException e) {
@@ -394,7 +419,30 @@ public class NetworkNode {
             }
         }
 
-        void getItem(ServerNode node, String item, int quantity) {
+        //Odsyła "Dziecku" informacje o sobie, informuje je o dodaniu do sieci
+        synchronized void sendAccepted() {
+            try {
+                DatagramPacket datagramPacket = new DatagramPacket("ACCEPTED".getBytes(), "ACCEPTED".getBytes().length, InetAddress.getByName(serverNodeList.get(serverNodeList.size() - 1).gateway), serverNodeList.get(serverNodeList.size() - 1).port);
+                datagramSocket.send(datagramPacket);
+                datagramPacket = new DatagramPacket(identifier.getBytes(), identifier.getBytes().length, InetAddress.getByName(serverNodeList.get(serverNodeList.size() - 1).gateway), serverNodeList.get(serverNodeList.size() - 1).port);
+                datagramSocket.send(datagramPacket);
+                datagramPacket = new DatagramPacket("127.0.0.1".getBytes(), "127.0.0.1".getBytes().length, InetAddress.getByName(serverNodeList.get(serverNodeList.size() - 1).gateway), serverNodeList.get(serverNodeList.size() - 1).port);
+                datagramSocket.send(datagramPacket);
+                datagramPacket = new DatagramPacket(String.valueOf(tcpport).getBytes(), String.valueOf(tcpport).getBytes().length, InetAddress.getByName(serverNodeList.get(serverNodeList.size() - 1).gateway), serverNodeList.get(serverNodeList.size() - 1).port);
+                datagramSocket.send(datagramPacket);
+                datagramPacket = new DatagramPacket(String.valueOf(Items.size()).getBytes(), String.valueOf(Items.size()).getBytes().length, InetAddress.getByName(serverNodeList.get(serverNodeList.size() - 1).gateway), serverNodeList.get(serverNodeList.size() - 1).port);
+                datagramSocket.send(datagramPacket);
+                for (Item item : Items) {
+                    datagramPacket = new DatagramPacket(item.name.getBytes(), item.name.getBytes().length, InetAddress.getByName(serverNodeList.get(serverNodeList.size() - 1).gateway), serverNodeList.get(serverNodeList.size() - 1).port);
+                    datagramSocket.send(datagramPacket);
+                    datagramPacket = new DatagramPacket(String.valueOf(item.quantity).getBytes(), String.valueOf(item.quantity).getBytes().length, InetAddress.getByName(serverNodeList.get(serverNodeList.size() - 1).gateway), serverNodeList.get(serverNodeList.size() - 1).port);
+                    datagramSocket.send(datagramPacket);
+                }
+            } catch (Exception ignored){}
+        }
+
+        //Funkcja usuwająca ilość posiadanych zasobów danego typu
+        synchronized void getItem(ServerNode node, String item, int quantity) {
             try {
                 DatagramPacket datagramPacket = new DatagramPacket("GET_ITEM".getBytes(), "GET_ITEM".getBytes().length, InetAddress.getByName(node.gateway), node.port);
                 datagramSocket.send(datagramPacket);
@@ -407,7 +455,8 @@ public class NetworkNode {
             }
         }
 
-        void sendListToParent() {
+        //Funkcja wysyłająca informację do "Rodzica" o pojawieniu się nowego Node niżej
+        synchronized void sendListToParent() {
             try {
                 DatagramPacket datagramPacket = new DatagramPacket("NEW_LIST".getBytes(), "NEW_LIST".getBytes().length, InetAddress.getByName(gateway), port);
                 datagramSocket.send(datagramPacket);
@@ -448,7 +497,8 @@ public class NetworkNode {
             }
         }
 
-        void sendUpdatedList() {
+        //Funkcja wysyłająca do wszystkich aktualnie istniejących Node aktualnej bazy informacji o innych Node'ach
+        synchronized void sendUpdatedList() {
             try {
                 for (ServerNode serverNode : serverNodeList) {
                     DatagramPacket datagramPacket = new DatagramPacket("UPDATED_LIST".getBytes(), "UPDATED_LIST".getBytes().length, InetAddress.getByName(serverNode.gateway), serverNode.port);
@@ -492,51 +542,60 @@ public class NetworkNode {
             }
         }
 
+        //W zależności od parametru -tcpport lub -udpport program rozpoczyna komunikację albo
+        // za pomcą TCP albo UDP, ale reszta komunikacji przebiega przy pomocy UDP
         @Override
         public synchronized void start() {
             if (gateway != null) {
-                try {
-                    DatagramPacket datagramPacket = new DatagramPacket("NEW_NODE".getBytes(), "NEW_NODE".getBytes().length, InetAddress.getByName(gateway), port);
-                    datagramSocket.send(datagramPacket);
-                    datagramPacket = new DatagramPacket(identifier.getBytes(), identifier.getBytes().length, InetAddress.getByName(gateway), port);
-                    datagramSocket.send(datagramPacket);
-                    datagramPacket = new DatagramPacket("127.0.0.1".getBytes(), "127.0.0.1".getBytes().length, InetAddress.getByName(gateway), port);
-                    datagramSocket.send(datagramPacket);
-                    datagramPacket = new DatagramPacket(String.valueOf(tcpport).getBytes(), String.valueOf(tcpport).getBytes().length, InetAddress.getByName(gateway), port);
-                    datagramSocket.send(datagramPacket);
-                    datagramPacket = new DatagramPacket(String.valueOf(Items.size()).getBytes(), String.valueOf(Items.size()).getBytes().length, InetAddress.getByName(gateway), port);
-                    datagramSocket.send(datagramPacket);
-                    for (Item item : Items) {
-                        datagramPacket = new DatagramPacket(item.name.getBytes(), item.name.getBytes().length, InetAddress.getByName(gateway), port);
-                        datagramSocket.send(datagramPacket);
-                        datagramPacket = new DatagramPacket(String.valueOf(item.quantity).getBytes(), String.valueOf(item.quantity).getBytes().length, InetAddress.getByName(gateway), port);
-                        datagramSocket.send(datagramPacket);
+                if (isTCP) {
+                    try {
+                        Socket netSocket = new Socket(gateway, port);
+                        PrintWriter out = new PrintWriter(netSocket.getOutputStream(), true);
+                        out.println("NEW_NODE");
+                        out.println(identifier);
+                        out.println(netSocket.getLocalAddress().getHostAddress());
+                        out.println(tcpport);
+                        out.println(Items.size());
+                        for (Item item : Items) {
+                            out.println(item.name);
+                            out.println(item.quantity);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                } else {
+                    try {
+                        DatagramPacket datagramPacket = new DatagramPacket("NEW_NODE".getBytes(), "NEW_NODE".getBytes().length, InetAddress.getByName(gateway), port);
+                        datagramSocket.send(datagramPacket);
+                        datagramPacket = new DatagramPacket(identifier.getBytes(), identifier.getBytes().length, InetAddress.getByName(gateway), port);
+                        datagramSocket.send(datagramPacket);
+                        datagramPacket = new DatagramPacket("127.0.0.1".getBytes(), "127.0.0.1".getBytes().length, InetAddress.getByName(gateway), port);
+                        datagramSocket.send(datagramPacket);
+                        datagramPacket = new DatagramPacket(String.valueOf(tcpport).getBytes(), String.valueOf(tcpport).getBytes().length, InetAddress.getByName(gateway), port);
+                        datagramSocket.send(datagramPacket);
+                        datagramPacket = new DatagramPacket(String.valueOf(Items.size()).getBytes(), String.valueOf(Items.size()).getBytes().length, InetAddress.getByName(gateway), port);
+                        datagramSocket.send(datagramPacket);
+                        for (Item item : Items) {
+                            datagramPacket = new DatagramPacket(item.name.getBytes(), item.name.getBytes().length, InetAddress.getByName(gateway), port);
+                            datagramSocket.send(datagramPacket);
+                            datagramPacket = new DatagramPacket(String.valueOf(item.quantity).getBytes(), String.valueOf(item.quantity).getBytes().length, InetAddress.getByName(gateway), port);
+                            datagramSocket.send(datagramPacket);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
 
+                }
             }
             super.start();
         }
 
-
         @Override
         public void run() {
-            while (true) {
-                try {
+            try {
+                while (true) {
                     datagramSocket.receive(datagram); //UDP
                     //log(new String(datagram.getData(), 0, datagram.getLength()));
-
-                    if (new String(datagram.getData(), 0, datagram.getLength()).equals("TRUE")) {
-                        datagramSocket.receive(datagram);
-                        String nodeID = new String(datagram.getData(), 0, datagram.getLength());
-                        for (ServerNode serverNode : serverNodeList) {
-                            if (serverNode.identifier.equals(nodeID)) {
-                                selectedNode = serverNode;
-                            }
-                        }
-                    }
 
                     if (new String(datagram.getData(), 0, datagram.getLength()).equals("NEW_NODE")) {
                         datagramSocket.receive(datagram);
@@ -557,7 +616,7 @@ public class NetworkNode {
                             arrayList.add(new Item(name, quantity));
                         }
                         for (ServerNode serverNode : serverNodeList) {
-                            if (serverNode.identifier.equals(nodeID) || identifier.equals(nodeID)) {
+                            if (serverNode.port == nodeTCPPort || tcpport == nodeTCPPort) {
                                 isOnList = true;
                                 break;
                             }
@@ -565,8 +624,39 @@ public class NetworkNode {
                         if (!isOnList) {
                             serverNodeList.add(new ServerNode(nodeID, nodeGateway, nodeTCPPort, arrayList));
                         }
+                        sendAccepted();
                         if (gateway != null) {
                             sendListToParent();
+                        }
+                        continue;
+                    }
+
+                    if (new String(datagram.getData(), 0, datagram.getLength()).equals("ACCEPTED")) {
+                        datagramSocket.receive(datagram);
+                        String nodeID = new String(datagram.getData(), 0, datagram.getLength());
+                        datagramSocket.receive(datagram);
+                        String nodeGateway = new String(datagram.getData(), 0, datagram.getLength());
+                        datagramSocket.receive(datagram);
+                        int nodeTCPPort = Integer.parseInt(new String(datagram.getData(), 0, datagram.getLength()));
+                        boolean isOnList = false;
+                        datagramSocket.receive(datagram);
+                        int numberOfItems = Integer.parseInt(new String(datagram.getData(), 0, datagram.getLength()));
+                        ArrayList<Item> arrayList = new ArrayList<>();
+                        for (int i = 0; i < numberOfItems; i++) {
+                            datagramSocket.receive(datagram);
+                            String name = new String(datagram.getData(), 0, datagram.getLength());
+                            datagramSocket.receive(datagram);
+                            int quantity = Integer.parseInt(new String(datagram.getData(), 0, datagram.getLength()));
+                            arrayList.add(new Item(name, quantity));
+                        }
+                        for (ServerNode serverNode : serverNodeList) {
+                            if (serverNode.port == nodeTCPPort || tcpport == nodeTCPPort) {
+                                isOnList = true;
+                                break;
+                            }
+                        }
+                        if (!isOnList) {
+                            serverNodeList.add(new ServerNode(nodeID, nodeGateway, nodeTCPPort, arrayList));
                         }
                         continue;
                     }
@@ -593,7 +683,7 @@ public class NetworkNode {
                                 arrayList.add(new Item(name, quantity));
                             }
                             for (ServerNode serverNode : serverNodeList) {
-                                if (serverNode.identifier.equals(nodeID) || identifier.equals(nodeID)) {
+                                if (serverNode.port == nodeTCPPort || tcpport == nodeTCPPort) {
                                     isOnList = true;
                                     break;
                                 }
@@ -631,7 +721,7 @@ public class NetworkNode {
                                 arrayList.add(new Item(name, quantity));
                             }
                             for (ServerNode serverNode : serverNodeList) {
-                                if (serverNode.identifier.equals(nodeID) || identifier.equals(nodeID)) {
+                                if (serverNode.port == nodeTCPPort || tcpport == nodeTCPPort) {
                                     isOnList = true;
                                     break;
                                 }
@@ -643,13 +733,10 @@ public class NetworkNode {
                         continue;
                     }
 
-                    if (new String(datagram.getData(), 0, datagram.getLength()).equals("REQUEST")) {
-                        datagramSocket.receive(datagram);
-                        String itemm = new String(datagram.getData(), 0, datagram.getLength());
-                        datagramSocket.receive(datagram);
-                        int quantity = Integer.parseInt(new String(datagram.getData(), 0, datagram.getLength()));
-                        datagramSocket.receive(datagram);
-                        String identity = new String(datagram.getData(), 0, datagram.getLength());
+                    if (new String(datagram.getData(), 0, datagram.getLength()).split(" ")[0].equals("REQUEST")) {
+                        int quantity = Integer.parseInt(new String(datagram.getData(), 0, datagram.getLength()).split(" ")[1]);
+                        String itemm = new String(datagram.getData(), 0, datagram.getLength()).split(" ")[2];
+                        String identity = new String(datagram.getData(), 0, datagram.getLength()).split(" ")[3];
                         for (ServerNode serverNode : serverNodeList) {
                             if (serverNode.identifier.equals(identity)) {
                                 for (Item item : serverNode.itemArrayList) {
@@ -678,9 +765,9 @@ public class NetworkNode {
                         }
                     }
 
-                } catch (IOException | InterruptedException e) {
-                    e.printStackTrace();
                 }
+            } catch (IOException | InterruptedException e) {
+                System.out.println(this.getName() + " UDP PROBLEM EXCEPTION");
             }
         }
     }
