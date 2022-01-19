@@ -82,6 +82,9 @@ public class NetworkNode {
             if (command.equals("isTCP")) {
                 System.out.println("isTCP: " + isTCP);
             }
+            if (command.equals("quit")){
+                System.exit(2);
+            }
         }
     }
 
