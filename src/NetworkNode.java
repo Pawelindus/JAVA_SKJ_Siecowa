@@ -25,21 +25,27 @@ public class NetworkNode {
         //Pętla skanująca parametry (args)
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
-                case "-ident" -> identifier = args[++i];
-                case "-udpport" -> {
+                case "-ident": {
+                    identifier = args[++i];
+                    break;
+                }
+                case "-udpport": {
                     String tcpPortArr = args[++i];
                     tcpport = Integer.parseInt(tcpPortArr);
                     isTCP = false;
+                    break;
                 }
-                case "-tcpport" -> {
+                case "-tcpport": {
                     String tcpPortArr = args[++i];
                     tcpport = Integer.parseInt(tcpPortArr);
                     isTCP = true;
+                    break;
                 }
-                case "-gateway" -> {
+                case "-gateway": {
                     String[] gatewayArray = args[++i].split(":");
                     gateway = gatewayArray[0];
                     port = Integer.parseInt(gatewayArray[1]);
+                    break;
                 }
             }
             if (args[i].length() > 2 && (args[i].charAt(0) >= 65 && args[i].charAt(0) <= 90)) {
@@ -71,12 +77,12 @@ public class NetworkNode {
                     for (Item item : serverNode.getItems()) {
                         log(item.toString());
                     }
-
                 }
-
+            }
+            if (command.equals("isTCP")) {
+                System.out.println("isTCP: " + isTCP);
             }
         }
-
     }
 
     //Klasa pozwalająca przechować informacje o innych Node w sieci (id, ip, port oraz jakie ma zasoby)
@@ -151,6 +157,114 @@ public class NetworkNode {
             bW.flush();
         }
 
+        //Funkcja wysyłająca prośbę o aktualizację informacji o zasobach
+        synchronized void sendRequest(String item, int quantity, String ident) {
+            try {
+                for (ServerNode serverNode : serverNodeList) {
+                    Socket netSocket = new Socket(serverNode.gateway, serverNode.port);
+                    PrintWriter out = new PrintWriter(netSocket.getOutputStream(), true);
+                    String message = "REQUEST" + " " + quantity + " " + item + " " + ident;
+                    out.println(message);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        //Odsyła "Dziecku" informacje o sobie, informuje je o dodaniu do sieci
+        synchronized void sendAccepted() {
+            try {
+                Socket netSocket = new Socket(serverNodeList.get(serverNodeList.size() - 1).gateway, serverNodeList.get(serverNodeList.size() - 1).port);
+                PrintWriter out = new PrintWriter(netSocket.getOutputStream(), true);
+                out.println("ACCEPTED");
+                out.println(identifier);
+                out.println("127.0.0.1");
+                out.println(tcpport);
+                out.println(Items.size());
+                for (Item item : Items) {
+                    out.println(item.name);
+                    out.println(item.quantity);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        //Funkcja usuwająca ilość posiadanych zasobów danego typu
+        synchronized void getItem(ServerNode node, String item, int quantity) {
+            try {
+                Socket netSocket = new Socket(node.gateway, node.port);
+                PrintWriter out = new PrintWriter(netSocket.getOutputStream(), true);
+                out.println("GET_ITEM");
+                out.println(item);
+                out.println(quantity);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        //Funkcja wysyłająca informację do "Rodzica" o pojawieniu się nowego Node niżej
+        synchronized void sendListToParent() {
+            try {
+                Socket netSocket = new Socket(gateway, port);
+                PrintWriter out = new PrintWriter(netSocket.getOutputStream(), true);
+                out.println("NEW_LIST");
+                out.println(serverNodeList.toArray().length + 1);
+                out.println(identifier);
+                out.println("127.0.0.1");
+                out.println(tcpport);
+                out.println(Items.size());
+                for (Item item : Items) {
+                    out.println(item.name);
+                    out.println(item.quantity);
+                }
+                for (ServerNode serverNode : serverNodeList) {
+                    out.println(serverNode.identifier);
+                    out.println(serverNode.gateway);
+                    out.println(serverNode.port);
+                    out.println(serverNode.itemArrayList.size());
+                    for (Item item : serverNode.itemArrayList) {
+                        out.println(item.name);
+                        out.println(item.quantity);
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        //Funkcja wysyłająca do wszystkich aktualnie istniejących Node aktualnej bazy informacji o innych Node'ach
+        synchronized void sendUpdatedList() {
+            try {
+                for (ServerNode serverNode : serverNodeList) {
+                    Socket netSocket = new Socket(serverNode.gateway, serverNode.port);
+                    PrintWriter out = new PrintWriter(netSocket.getOutputStream(), true);
+                    out.println("UPDATED_LIST");
+                    out.println(serverNodeList.toArray().length + 1);
+                    out.println(identifier);
+                    out.println("127.0.0.1");
+                    out.println(tcpport);
+                    out.println(Items.size());
+                    for (Item item : Items) {
+                        out.println(item.name);
+                        out.println(item.quantity);
+                    }
+                    for (ServerNode serverNode2 : serverNodeList) {
+                        out.println(serverNode2.identifier);
+                        out.println(serverNode2.gateway);
+                        out.println(serverNode2.port);
+                        out.println(serverNode2.itemArrayList.size());
+                        for (Item item : serverNode2.itemArrayList) {
+                            out.println(item.name);
+                            out.println(item.quantity);
+                        }
+                    }
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
         @Override
         public void run() {
             try {
@@ -190,9 +304,9 @@ public class NetworkNode {
                         if (!isOnList) {
                             serverNodeList.add(new ServerNode(nodeID, nodeGateway, nodeTCPPort, arrayList));
                         }
-                        UDPThread.sendAccepted();
+                        sendAccepted();
                         if (gateway != null) {
-                            UDPThread.sendListToParent();
+                            sendListToParent();
                         }
                         continue;
                     }
@@ -246,7 +360,7 @@ public class NetworkNode {
                             }
                         }
                         if (gateway == null) {
-                            UDPThread.sendUpdatedList();
+                            sendUpdatedList();
                         }
                         continue;
                     }
@@ -278,10 +392,10 @@ public class NetworkNode {
                         continue;
                     }
 
-                    if (msg.equals("REQUEST")) {
-                        String itemm = bR.readLine();
-                        int quantity = Integer.parseInt(bR.readLine());
-                        String identity = bR.readLine();
+                    if (msg.split(" ")[0].equals("REQUEST")) {
+                        String itemm = msg.split(" ")[2];
+                        int quantity = Integer.parseInt(msg.split(" ")[1]);
+                        String identity = msg.split(" ")[3];
                         for (ServerNode serverNode : serverNodeList) {
                             if (serverNode.identifier.equals(identity)) {
                                 for (Item item : serverNode.itemArrayList) {
@@ -300,7 +414,7 @@ public class NetworkNode {
                         for (Item itemToCheck : Items) {
                             if (itemToCheck.name.equals(item)) {
                                 itemToCheck.quantity -= quantity;
-                                UDPThread.sendRequest(itemToCheck.name, itemToCheck.quantity, identifier);
+                                sendRequest(itemToCheck.name, itemToCheck.quantity, identifier);
                             }
                         }
                         continue;
@@ -378,7 +492,7 @@ public class NetworkNode {
                                     }
                                 }
                             } else {
-                                UDPThread.getItem(clientNode, clientNode.oneItem.name, clientNode.oneItem.quantity);
+                                getItem(clientNode, clientNode.oneItem.name, clientNode.oneItem.quantity);
                             }
                         }
 
@@ -438,7 +552,8 @@ public class NetworkNode {
                     datagramPacket = new DatagramPacket(String.valueOf(item.quantity).getBytes(), String.valueOf(item.quantity).getBytes().length, InetAddress.getByName(serverNodeList.get(serverNodeList.size() - 1).gateway), serverNodeList.get(serverNodeList.size() - 1).port);
                     datagramSocket.send(datagramPacket);
                 }
-            } catch (Exception ignored){}
+            } catch (Exception ignored) {
+            }
         }
 
         //Funkcja usuwająca ilość posiadanych zasobów danego typu
