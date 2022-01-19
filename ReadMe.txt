@@ -6,9 +6,10 @@ Spis treści:
 3. Komunikacja z klientem (TCP)
 4. Wykorzystane wewnętrzne polecenia do komunikacji między węzłami oraz ich opis
 5. Kompilacja z poziomu wiersza poleceń
-6. Implementacja
-7. Polecenia debugujące
-8. Dodatkowe
+6. Zawartość katalogów class oraz java
+7. Implementacja
+8. Polecenia debugujące
+9. Dodatkowe
 
 
 
@@ -84,14 +85,19 @@ Następnie aby uruchomić program należy wpisać w konsoli: 'java NetworkNode'.
 Dokładny proces uruchamiania został opisany w punkcie 1.
 
 
-            _____6. Implementacja_____
+            _____6. Zawartość katalogów class oraz java_____
+W katalogu 'java' znajduje się plik źródłowy kompatybilny z Amazon Corretto 8 (java 1.8) oraz skrypty umożliwiające automatyczną kompilację i uruchomienie.
+W katalogu 'class' znajdują się pliki binarne oraz skrypty uruchomieniowe (czysta aplikacja oraz przykładowa sieć).
+
+
+            _____7. Implementacja_____
 Zaimplementowane zostały:
     1) Tworzenie i podłączanie kolejnych węzłów do sieci
     2) Komunikacja z klientem, przyjmowanie żądań, alokacja zasobów wewnątrz węzła
     3) Alokacja zasobów w całej sieci (w kilku węzłach)
 
 
-            _____7. Polecenia debugujące_____
+            _____8. Polecenia debugujące_____
 Polecenia dodatkowe wywoływane w konsoli podczas działania programu (w celu debugowania):
 'close'     -> zamyka Socket
 'showNodes' -> pokazuje aktualną liste "Kontaktów" węzła na którym zostanie użyta komenda
@@ -99,7 +105,7 @@ Polecenia dodatkowe wywoływane w konsoli podczas działania programu (w celu de
 'quit'      -> zamyka jendą instancję aplikacji (System.exit)
 
 
-            _____8. Dodatkowe_____
+            _____9. Dodatkowe_____
 Program przeszedł testy na próbnych, dostarczonych skryptach.
 Nie została wychwycona żadna nieprawidłowość podczas testów.
 
