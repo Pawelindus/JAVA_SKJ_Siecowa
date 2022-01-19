@@ -2,7 +2,7 @@ Plik ReadMe do programu NetworkNode
 
 Spis treści:
 1. Uruchamianie programu (węzła)
-2. Przyłączanie nowego węzła i komunikacja między węzłami (TCP + UDP lub UDP + UDP)
+2. Przyłączanie nowego węzła i komunikacja między węzłami (TCP lub UDP)
 3. Komunikacja z klientem (TCP)
 4. Wykorzystane wewnętrzne polecenia do komunikacji między węzłami oraz ich opis
 5. Kompilacja z poziomu wiersza poleceń
@@ -19,8 +19,8 @@ java NetworkNode
 
 Obsługiwane są następujące parametry przy uruchamianiu:
 -ident   <id>         -> Jest to identyfikator danego węzła, powinen być liczbą naturalną, zalecana jest unikatowość, lecz nie jest obowiązkowa;
--udpport <port>       -> Ustawia port na którym program nasłuchuje oraz wymusza PIERWSZĄ komunikację z nowym węzłem przy pomocy UDP, pozostałe zapytania wewnętrzne przy pomocy UDP;
--tcpport <port>       -> Ustawia port na którym program nasłuchuje oraz wymusza PIERWSZĄ komunikację z nowym węzłem przy pomocy TCP, pozostałe zapytania wewnętrzne przy pomocy UDP;
+-udpport <port>       -> Ustawia port na którym program nasłuchuje oraz wymusza komunikację z nowym węzłem i pozostałe zapytania wewnętrzne przy pomocy UDP;
+-tcpport <port>       -> Ustawia port na którym program nasłuchuje oraz wymusza komunikację z nowym węzłem i pozostałe zapytania wewnętrzne przy pomocy TCP;
 -gateway <ip:port>    -> Ustawia ip oraz port "Rodzica", z którym nowo powstały węzeł komunikuje się w celu podłączenia do reszty;
 "zasoby" <zasob:ilos> -> Ustawia zasób oraz jego ilość, przyjmowane są typy zasobów A - Z w dowolnej ilości, aż do MAX_INT;
 
@@ -37,7 +37,7 @@ java NetworkNode -ident 123 -tcpport 9991 -gateway localhost:9990 A:5 C:3
 PIERWSZY węzeł powinen być uruchamiany bez -gateway, gdyż nie ma on swojego "Rodzica".
 
 
-            _____2. Przyłączanie nowego węzła i komunikacja między węzłami (TCP + UDP lub UDP + UDP)_____
+            _____2. Przyłączanie nowego węzła i komunikacja między węzłami (TCP lub UDP)_____
 Po uruchomieniu pierwszego węzła na np. porcie 9000 można uruchomić kolejny w celu dołączenia go do już istniejącego węzła.
 Uruchamiamy drugi węzeł podając w parametrze -gateway IP:PORT pierwszego węzła, w przypadku jednego komputera: 127.0.0.1:9000 (ew. localhost:9000).
 W parametrze -tcpport (ew. -udpport) musimy podać inny port, niż aktualnie używany. Nie można przypisać tego samego portu więcej niż raz.
@@ -93,8 +93,10 @@ Zaimplementowane zostały:
 
             _____7. Polecenia debugujące_____
 Polecenia dodatkowe wywoływane w konsoli podczas działania programu (w celu debugowania):
-'close' -> zamyka Socket
+'close'     -> zamyka Socket
 'showNodes' -> pokazuje aktualną liste "Kontaktów" węzła na którym zostanie użyta komenda
+'isTCP'     -> zwraca true jeżeli wykorzystuje TCP do komunikacji wewnętrznej lub false jeśli UDP
+'quit'      -> zamyka jendą instancję aplikacji (System.exit)
 
 
             _____8. Dodatkowe_____
